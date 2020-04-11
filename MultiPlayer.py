@@ -1,4 +1,3 @@
-from .RedisClient import RedisClient as Redis
 from .Score import Score
 from .Songlist import *
 from .Exceptions import *
@@ -32,15 +31,17 @@ class Event:
 
 class Multiplayer:
 
-    def __init__(self, host, name='Arcaea Multiplayer', members=5, mode='normal'):
+    def __init__(self, ident, host, name='Arcaea Multiplayer', members=5, mode='normal'):
         """
         Defines a Multiplayer room.
         :param host: Creator of the room, Arcaea ID
         :param name: Title of the room.
         :param members: Max members of the room.
         :param mode: 'normal' Normal room 'casual' Casual play 'vs' 1-1 VS Mode
+
+        You may need to register some event calls in order to know what happened during play.
         """
-        self.id = int(Redis.incr('lastid')) + 1  # Multiplayer room ID
+        self.id = ident  # Multiplayer room ID
         self.title = name  # Room Title
         self.mode = mode  # Playmode, 'normal' or 'casual'
         self.max_members = members  # Member limit
@@ -50,25 +51,47 @@ class Multiplayer:
         self.count = 1  # Total members of the room, including the host
         self.members = [host]  # Members of the room
         self.scores = {}  # Scores of each round
-        self.ranks = []  # Ranking of each round
+        self.ranks = [['dummy'], ]  # Ranking of each round
         self.status = 'idle'  # Status of the room ('idle', 'playing', 'scoring', 'closed', 'stopped'
         # 'full')
         self.time = {}      # Start and end time of each round
         self.scored = 0     # Flags the scoring status for preventing endless loop
         self.events = []  # Event of this room (joining, leaving, etc)
         self.song_current = ''  # Currently playing song
+        self.diff_current = ''  # Current beatmap level
         self.events.append(Event('created', f'Room {self.id} created', '', self.round_current))
         self.rounds.append({})
-        Redis.hset(f'arcaeamp:{self.id}', 'host', self.host)
-        Redis.hset(f'arcaeamp:{self.id}', 'title', self.title)
+        self.calls = {      # This is a event-based lib (probably)
 
-    def add_member(self, userid, callback=None):
+        }
+
+    def regcall(self, calltype, call):
+        if callable(call):
+            if calltype in ['onCreate', 'onRemove', 'onClose', 'onStart', 'onStop', 'onScoreComplete']:
+                self.calls[calltype] = call
+
+            else:
+                raise Exception('Invalid call type.')
+
+        else:
+            raise Exception("It's not callable.")
+
+    def cur_song(self):
+        if len(self.rounds) - 1 < self.round_current:
+            if len(self.rounds) == 1:
+                return ['none', 'none']
+            else:
+                return self.rounds[self.round_current - 1]['id'], self.rounds[self.round_current - 1]['difficulty']
+        else:
+            return self.rounds[self.round_current]['id'], self.rounds[self.round_current]['difficulty']
+
+    def add_member(self, userid):
         if self.count == self.max_members:
             raise RoomIsFull
         self.members.append(userid)
         self.count = len(self.members) + 1
 
-    def rm_member(self, userid, reason='', callback=None):
+    def rm_member(self, userid, reason=''):
         if userid not in self.members:
             raise KeyError(f'{userid} is not found in this mp room.')
         self.members.pop(self.members.index(userid))
@@ -76,15 +99,19 @@ class Multiplayer:
         self.events.append(Event('remove', f'user {userid} has been removed', userid, self.round_current, reason))
         if self.members.__len__() == 0:
             self.status = 'closed'
-        if callback:
-            callback(reason)
+            self.close()
+        if 'onRemove' in self.calls.keys():
+            call = self.calls['onRemove']
+            call(self, userid, reason)
 
     def close(self):
         for member in self.members:
             if member == self.host:
                 pass
             self.rm_member(member, reason='closing')
-        self.rm_member(self.host)
+        if 'onClose' in self.calls.keys():
+            call = self.calls['onClose']
+            call(self)
 
     def set_song(self, songid: str, difficulty: str):
         if songid not in songs_by_id:
@@ -95,6 +122,7 @@ class Multiplayer:
         self.rounds[self.round_current + 1]['id'] = songid
         self.rounds[self.round_current + 1]['difficulty'] = index.index(difficulty.upper())
         self.song_current = self.rounds[self.round_current + 1]['id']
+        self.diff_current = self.rounds[self.round_current + 1]['difficulty']
 
     def update_score(self):
         self.status = 'scoring'
@@ -105,37 +133,46 @@ class Multiplayer:
         self.status = 'idle'
 
     def nextround(self):
+        if 'id' not in self.rounds[self.round_current + 1].keys():
+            self.rounds[self.round_current + 1]['id'] = self.rounds[self.round_current]['id']
+            self.rounds[self.round_current + 1]['difficulty'] = self.rounds[self.round_current]['difficulty']
+            # Continue as current song and diff
+
         self.status = 'playing'
         self.round_current += 1
         self.events.append(Event('start', f'Round {self.round_current} started', '', self.round_current))
         self.time[f'round_{self.round_current}'] = {'start': curtime()}  # Record current time
-        Redis.hincrby(f'arcaeamp:{self.id}', 'rounds')
 
     def stop(self):
         self.status = 'stopped'
         self.time[f'round_{self.round_current}']['stop'] = curtime()
         self.events.append(Event('stop', f'Round {self.round_current} stopped', '', self.round_current))
+        if 'onStop' in self.calls.keys():
+            call = self.calls['onStop']
+            call(self)
 
-    def score(self, callback=None):
-        self.update_score()
+    def score(self):
+        try:
+            self.update_score()
+        except QueryFailed as e:
+            if 'onException' in self.calls.keys():
+                call = self.calls['onException']
+                call(self.id, e)
+
         for score in self.scores[f'round_{self.round_current}']:
             if score.song_id != self.rounds[self.round_current]['id']:
-                self.rm_member(score.user, reason='invsongkick', callback=callback)
+                self.rm_member(score.user, reason='invsongkick')
             if score.difficulty != self.rounds[self.round_current]['difficulty']:
-                self.rm_member(score.user, reason='invdiffkick', callback=callback)
+                self.rm_member(score.user, reason='invdiffkick')
 
         self.scores[f'round_{self.round_current}'].sort(key=lambda x: x.score, reverse=True)
-        Redis.hset(f'arcaeamp:{self.id}:round_{self.round_current}', 'len', len(self.scores))
+        self.ranks.append([])
         for score in self.scores[f'round_{self.round_current}']:
-            i = self.scores[f'round_{self.round_current}'].index(score) + 1
-            Redis.hset(f'arcaeamp:{self.id}:round_{self.round_current}:score{i}', f'userid',score.user)
-            Redis.hset(f'arcaeamp:{self.id}:round_{self.round_current}:score{i}', f'username', score.name)
-            Redis.hset(f'arcaeamp:{self.id}:round_{self.round_current}:score{i}', f'score', score.score)
-            Redis.hset(f'arcaeamp:{self.id}:round_{self.round_current}:score{i}', f'rating', score.rating)
-            Redis.hset(f'arcaeamp:{self.id}:round_{self.round_current}:score{i}', f'pure', score.counts[0] + score.counts[1])
-            Redis.hset(f'arcaeamp:{self.id}:round_{self.round_current}:score{i}', f'far', score.counts[2])
-            Redis.hset(f'arcaeamp:{self.id}:round_{self.round_current}:score{i}', f'miss', score.counts[3])
-            Redis.hset(f'arcaeamp:{self.id}:round_{self.round_current}:score{i}', f'time', score.playtime)
+            self.ranks[self.round_current].append(score.user)
+
         self.rounds.append({})  # Prepare for the next round
         self.status = 'idle' if self.count < self.max_members else 'full'  # Change status
         self.scored = self.round_current
+        if 'onScoreComplete' in self.calls.keys():
+            call = self.calls['onScoreComplete']
+            call(self)
