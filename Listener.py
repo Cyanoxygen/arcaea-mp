@@ -1,18 +1,16 @@
 from datetime import datetime
 from time import sleep
 from arcaea.MultiPlayer import Multiplayer
-from arcaea.RedisClient import RedisClient
-import json
 import threading
-from arcaea import config
+import config
 
 
 def curtime():
     return int(datetime.now().timestamp())
 
 
-class MultiplayerHandler:
-    def __init__(self):
+class MultiplayerListener:
+    def __init__(self, threaded=True):
         """
         The listener process.
         This listener will repeatly check mp rooms in the list and automatically score them.
@@ -22,22 +20,26 @@ class MultiplayerHandler:
         self.threadlist = []  # list of thread
         self.mainthread = None
         self.recyclethread = None
+        self.threaded = threaded
 
     def recycle(self):
         while True:
             for thread in self.threadlist:
                 if thread.is_alive() is not True:
-                    self.threadlist.pop(thread)
+                    self.threadlist.pop(self.threadlist.index(thread))
             sleep(5)
 
     def start(self):
+        if not self.threaded:
+            self.mainthread = None
+        else:
+            self.mainthread = threading.Thread(target=self.listen)
         self.recyclethread = threading.Thread(target=self.recycle)
-        self.mainthread = threading.Thread(target=self.listen)
         self.recyclethread.start()
         self.mainthread.start()
 
     def addmp(self, ident, host, title='Arcaea Multiplayer', members=10):
-        self.mplist[str(ident)] = Multiplayer(host, name=title, members=members)
+        self.mplist[str(ident)] = Multiplayer(ident=ident, host=host, name=title, members=members)
 
     def listen(self):
         while True:
@@ -55,8 +57,9 @@ class MultiplayerHandler:
                     self.threadlist.append(threading.Thread(target=mp.score()))
                     self.threadlist[len(self.threadlist) - 1].start()
                 if curtime() - mp.time[f'round_{mp.round_current}']['start'] >= config.threshold:
-                    print(f'Stopping mproom {mp.id}, {mp.title}')
-                    mp.stop()
+                    if mp.round_current != mp.scored:
+                        print(f'Stopping mproom {mp.id}, {mp.title}')
+                        mp.stop()
 
             sleep(5)
 
