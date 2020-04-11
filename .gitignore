@@ -1,2 +1,4 @@
 config.py
 __pycache__
+# Please download Arcaea APK and extract songlist and packlist and convert manually
+Songlist.py
