@@ -48,6 +48,7 @@ class Multiplayer:
         self.round_current = 0  # Current round
         self.rounds = [{}]  # Total rounds
         self.host = host  # Host of the room, Arcaea ID
+        self.creator = host     # Creator of the room
         self.count = 1  # Total members of the room, including the host
         self.members = [host]  # Members of the room
         self.scores = {}  # Scores of each round
@@ -67,7 +68,7 @@ class Multiplayer:
 
     def regcall(self, calltype, call):
         if callable(call):
-            if calltype in ['onCreate', 'onRemove', 'onClose', 'onStart', 'onStop', 'onScoreComplete']:
+            if calltype in ['onCreate', 'onRemove', 'onHostChange', 'onClose', 'onStart', 'onStop', 'onScoreComplete']:
                 self.calls[calltype] = call
 
             else:
@@ -79,7 +80,7 @@ class Multiplayer:
     def cur_song(self):
         if len(self.rounds) - 1 < self.round_current:
             if len(self.rounds) == 1:
-                return ['none', 'none']
+                return ['none', 'ftr']
             else:
                 return self.rounds[self.round_current - 1]['id'], self.rounds[self.round_current - 1]['difficulty']
         else:
@@ -97,12 +98,26 @@ class Multiplayer:
         self.members.pop(self.members.index(userid))
         self.count -= 1
         self.events.append(Event('remove', f'user {userid} has been removed', userid, self.round_current, reason))
-        if self.members.__len__() == 0:
-            self.status = 'closed'
-            self.close()
         if 'onRemove' in self.calls.keys():
             call = self.calls['onRemove']
             call(self, userid, reason)
+        if self.members.__len__() == 0:
+            self.status = 'closed'
+            self.close()
+            return
+        if userid == self.host:
+            self.change_host(self.members[0])
+
+    def change_host(self, member):
+        if member not in self.members:
+            raise Exception('Member not found')
+        oldhost = self.host
+        self.host = member
+        self.events.append(Event('hostchange', f'Host of {self.id} was changed from {oldhost} to {self.host}',
+                                 member, self.round_current))
+        if 'onHostChange' in self.calls.keys():
+            call = self.calls['onHostChange']
+            call(self, oldhost, member)
 
     def close(self):
         for member in self.members:
