@@ -19,7 +19,7 @@
 使用 git 克隆仓库到项目文件夹。
 
 ```shell script
-git clone -u arcaea https://github.com/Cyanoxygen/arcaea-mp
+git clone https://github.com/Cyanoxygen/arcaea-mp arcaea
 cd arcaea
 mv config.example.py config.py
 ```
