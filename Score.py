@@ -70,9 +70,9 @@ class Score:
         return f"{self.name} {self.user} {self.ptt} {self.song_id} {self.score}"
 
     def __repr__(self):
-        return {'username': self.name, 'usercode': self.user, 'ptt': self.ptt, 'song': self.song_id,
+        return str({'username': self.name, 'usercode': self.user, 'ptt': self.ptt, 'song': self.song_id,
                 'score': self.score, 'cleartype': self.cleartype, 'const': self.const,
-                'rating': self.rating, 'counts': self.counts, 'playtime': self.playtime}
+                'rating': self.rating, 'counts': self.counts, 'playtime': self.playtime})
 
 def User_exists(user):
     try:

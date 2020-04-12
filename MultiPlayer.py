@@ -191,3 +191,14 @@ class Multiplayer:
         if 'onScoreComplete' in self.calls.keys():
             call = self.calls['onScoreComplete']
             call(self)
+
+    def __repr__(self):
+        dict = {'id': self.id, 'title': self.title, 'creator': self.creator, 'host':self.host, 'rounds': [], 'scores': [], 'ranks': self.ranks}
+        for r in self.rounds:
+            dict['rounds'].append(r)
+        for s in self.scores.keys():
+            l = []
+            for c in self.scores[s]:
+                l.append(c.__repr__())
+            dict['scores'].append(l)
+        return str(dict)
