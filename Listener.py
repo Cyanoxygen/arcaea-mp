@@ -18,8 +18,8 @@ class MultiplayerListener:
         self.mplist = {}
         self.status = 'running'
         self.threadlist = []  # list of thread
-        self.mainthread = None
-        self.recyclethread = None
+        self.mainthread = threading.Thread
+        self.recyclethread = threading.Thread
         self.threaded = threaded
 
     def recycle(self):
@@ -54,8 +54,11 @@ class MultiplayerListener:
                     continue
                 if mp.status == 'stopped' and mp.scored != mp.round_current:
                     print(f'Scoring mproom {mp.id}, name={mp.title}')
-                    self.threadlist.append(threading.Thread(target=mp.score()))
-                    self.threadlist[len(self.threadlist) - 1].start()
+                    try:
+                        self.threadlist.append(threading.Thread(target=mp.score()))
+                        self.threadlist[len(self.threadlist) - 1].start()
+                    except Exception as e:
+                        print(e)
                 if curtime() - mp.time[f'round_{mp.round_current}']['start'] >= config.threshold:
                     if mp.round_current != mp.scored:
                         print(f'Stopping mproom {mp.id}, {mp.title}')
