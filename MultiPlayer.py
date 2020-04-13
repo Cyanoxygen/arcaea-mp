@@ -183,8 +183,10 @@ class Multiplayer:
                     pass
                 else:
                     self.rm_member(score.user, reason='invdiffkick')
-
-        self.scores[f'round_{self.round_current}'].sort(key=lambda x: x.score, reverse=True)
+        if self.status == 'closed':
+            return
+            
+        self.scores[f'round_{self.round_current}'].sort(key=lambda x: (x.score if not self.ignorediff else x.rating), reverse=True)
         self.ranks.append([])
         for score in self.scores[f'round_{self.round_current}']:
             self.ranks[self.round_current].append(score.user)
