@@ -174,18 +174,20 @@ class Multiplayer:
             if 'onException' in self.calls.keys():
                 call = self.calls['onException']
                 call(self.id, e)
-
-        for score in self.scores[f'round_{self.round_current}']:
+        scores = self.scores[f'round_{self.round_current}']
+        for score in scores:
             if score.song_id != self.rounds[self.round_current]['id']:
                 self.rm_member(score.user, reason='invsongkick')
+                self.scores[f'round_{self.round_current}'].pop(scores.index(score))
             if score.difficulty != self.rounds[self.round_current]['difficulty']:
                 if self.ignorediff:
                     pass
                 else:
                     self.rm_member(score.user, reason='invdiffkick')
+                    self.scores[f'round_{self.round_current}'].pop(scores.index(score))
         if self.status == 'closed':
             return
-            
+
         self.scores[f'round_{self.round_current}'].sort(key=lambda x: (x.score if not self.ignorediff else x.rating), reverse=True)
         self.ranks.append([])
         for score in self.scores[f'round_{self.round_current}']:
