@@ -85,6 +85,8 @@ class Multiplayer:
             else:
                 return ('dummy', 'prs')
         else:
+            if len(self.rounds[-1]) == 0:
+                return self.rounds[-2]['id'], self.rounds[-2]['difficulty']
             return self.rounds[-1]['id'], self.rounds[-1]['difficulty']
 
     def add_member(self, userid):
