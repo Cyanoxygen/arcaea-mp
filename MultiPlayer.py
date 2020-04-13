@@ -78,13 +78,13 @@ class Multiplayer:
             raise Exception("It's not callable.")
 
     def cur_song(self):
-        if len(self.rounds) - 1 < self.round_current:
-            if len(self.rounds) == 1:
-                return ['none', 'ftr']
+        if self.round_current == 0:
+            if len(self.rounds[-1]) == 2:
+                return self.rounds[-1]['id'], self.rounds[-1]['difficulty']
             else:
-                return self.rounds[self.round_current - 1]['id'], self.rounds[self.round_current - 1]['difficulty']
+                return ('dummy', 'prs')
         else:
-            return self.rounds[self.round_current]['id'], self.rounds[self.round_current]['difficulty']
+            return self.rounds[-1]['id'], self.rounds[-1]['difficulty']
 
     def add_member(self, userid):
         if self.count == self.max_members:
