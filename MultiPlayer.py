@@ -60,6 +60,7 @@ class Multiplayer:
         self.events = []  # Event of this room (joining, leaving, etc)
         self.song_current = ''  # Currently playing song
         self.diff_current = ''  # Current beatmap level
+        self.ignorediff = False
         self.events.append(Event('created', f'Room {self.id} created', '', self.round_current))
         self.rounds.append({})
         self.calls = {      # This is a event-based lib (probably)
@@ -178,7 +179,10 @@ class Multiplayer:
             if score.song_id != self.rounds[self.round_current]['id']:
                 self.rm_member(score.user, reason='invsongkick')
             if score.difficulty != self.rounds[self.round_current]['difficulty']:
-                self.rm_member(score.user, reason='invdiffkick')
+                if self.ignorediff:
+                    pass
+                else:
+                    self.rm_member(score.user, reason='invdiffkick')
 
         self.scores[f'round_{self.round_current}'].sort(key=lambda x: x.score, reverse=True)
         self.ranks.append([])
