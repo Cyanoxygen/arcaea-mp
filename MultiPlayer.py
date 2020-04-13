@@ -106,6 +106,8 @@ class Multiplayer:
             call(self, userid, reason)
         if self.members.__len__() == 0:
             self.status = 'closed'
+            if reason == 'closing':
+                return
             self.close()
             return
         if userid == self.host:
@@ -124,8 +126,6 @@ class Multiplayer:
 
     def close(self):
         for member in self.members:
-            if member == self.host:
-                pass
             self.rm_member(member, reason='closing')
         if 'onClose' in self.calls.keys():
             call = self.calls['onClose']
